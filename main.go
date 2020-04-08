@@ -21,12 +21,16 @@ type WSRequest() struct {
 
 var (
 	deviceId = "51a8da4c-a9ce-403f-999b-6f0445e52d74"
-	peerConnection webrtc.*PeerConnection
+	wsAddr string
 	audioSrc string
 	videoSrc string
-	wsAddr string
+	defaultWSAddr = "118.89.111.54:8080"
+	defaultAudioSrc = "audiotestsrc"
+	defaultVideoSrc = "autovideosrc ! video/x-raw, width=320, height=240 ! videoconvert ! queue"
+	
 	audioTrack webrtc.Track
 	videoTrack webrtc.Track
+	peerConnection webrtc.*PeerConnection
 	config = webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -37,9 +41,9 @@ var (
 )
 
 func main(){
-	audioSrc = flag.String("audio-src", "audiotestsrc", "GStreamer audio src")
-	videoSrc = flag.String("video-src", "autovideosrc ! video/x-raw, width=320, height=240 ! videoconvert ! queue", "GStreamer video src")
-	wsAddr = flag.String("websocket-addr", "118.89.111.54:8080", "websocket service address")
+	audioSrc = flag.String("audio-src", defaultAudioSrc, "GStreamer audio src")
+	videoSrc = flag.String("video-src", defaultVideoSrc, "GStreamer video src")
+	wsAddr = flag.String("websocket-addr", defaultWSAddr, "websocket service address")
 	flag.Parse()
 
 	initWebRTC()
@@ -84,6 +88,42 @@ func initWebRTC(){
 	}
 }
 
+
+func reWebRTC(close chan string,offer webrtc.SessionDescription){
+	// Set the remote SessionDescription
+	err = peerConnection.SetRemoteDescription(offer)
+		if err != nil {
+		panic(err)
+	}
+
+	// Create an answer
+	answer, err := peerConnection.CreateAnswer(nil)
+	if err != nil {
+		panic(err)
+	}
+
+	// Sets the LocalDescription, and starts our UDP listeners
+	err = peerConnection.SetLocalDescription(answer)
+	if err != nil {
+		panic(err)
+	}
+
+	// Output the answer in base64 so we can paste it in browser
+	req := &WSRequest{}
+	req.Type = "answer"
+	req.DeviceId = deviceId
+	req.Data = signal.Encode(answer)
+ 
+	data, _ := json.Marshal(req)
+	conn.WriteMessage(websocket.TextMessage, data)
+
+	// Start pushing buffers on these tracks
+	gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc).Start()
+	gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, *videoSrc).Start()
+
+	<- close
+}
+
 func reConnection(){
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/answer"}
 	fmt.Println("connecting to ", u.String())
@@ -95,7 +135,9 @@ func reConnection(){
 	}
 	defer conn.Close()
 
+	close := make(chan string)
 	conn.SetCloseHandler(func(code int, text string) error {
+		close <- "close"
 		initWebRTC()
 		go reConnection()
 		return nil
@@ -123,37 +165,7 @@ func reConnection(){
 		if resp["type"] == "offer" {
 			offer := webrtc.SessionDescription{}
 			signal.Decode(resp["data"], &offer)
-
-			// Set the remote SessionDescription
-			err = peerConnection.SetRemoteDescription(offer)
-				if err != nil {
-				panic(err)
-			}
-
-			// Create an answer
-			answer, err := peerConnection.CreateAnswer(nil)
-			if err != nil {
-				panic(err)
-			}
-
-			// Sets the LocalDescription, and starts our UDP listeners
-			err = peerConnection.SetLocalDescription(answer)
-			if err != nil {
-				panic(err)
-			}
-
-			// Output the answer in base64 so we can paste it in browser
-			req := &WSRequest{}
-			req.Type = "answer"
-			req.DeviceId = deviceId
-			req.Data = signal.Encode(answer)
-		 
-			data, _ := json.Marshal(req)
-			conn.WriteMessage(websocket.TextMessage, data)
-
-			// Start pushing buffers on these tracks
-			gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc).Start()
-			gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, *videoSrc).Start()
+			go reWebRTC(close,&offer)
 		}
 	}
 }
