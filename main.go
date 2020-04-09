@@ -1,18 +1,19 @@
 package main
 
-import(
+import (
 	"fmt"
 	"flag"
 	"math/rand"
 	"github.com/pion/webrtc/v2"
 	"net/url"
+	"time"
 	"github.com/gorilla/websocket"
 	"encoding/json"
 	gst "webrtc-device/lib/gstreamer-src"
 	"webrtc-device/lib/signal"
 )
 
-type WSRequest() struct {
+type Session() struct {
 	Type string `json:"type"`
 	Msg string `json:"msg"`
 	Data string `json:"data"`
@@ -20,24 +21,9 @@ type WSRequest() struct {
 }
 
 var (
-	deviceId = "51a8da4c-a9ce-403f-999b-6f0445e52d74"
 	wsAddr string
 	audioSrc string
 	videoSrc string
-	defaultWSAddr = "118.89.111.54:8080"
-	defaultAudioSrc = "audiotestsrc"
-	defaultVideoSrc = "autovideosrc ! video/x-raw, width=320, height=240 ! videoconvert ! queue"
-	
-	audioTrack webrtc.Track
-	videoTrack webrtc.Track
-	peerConnection webrtc.*PeerConnection
-	config = webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:118.89.111.54:3478"},
-			},
-		},
-	}
 )
 
 func main(){
@@ -46,126 +32,32 @@ func main(){
 	wsAddr = flag.String("websocket-addr", defaultWSAddr, "websocket service address")
 	flag.Parse()
 
-	initWebRTC()
-	go reConnection()
-
-	// Block forever
-	select {}
-}
-
-func initWebRTC(){
-	// Create a new RTCPeerConnection
-	peerConnection, err := webrtc.NewPeerConnection(config)
-	if err != nil {
-		panic(err)
-	}
-
-	// Set the handler for ICE connection state
-	// This will notify you when the peer has connected/disconnected
-	peerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
-		fmt.Printf("Connection State has changed %s \n", connectionState.String())
-	})
-
-	
-	// Create a audio track
-	audioTrack, err = peerConnection.NewTrack(webrtc.DefaultPayloadTypeOpus, rand.Uint32(), "audio", "pion1")
-	if err != nil {
-		panic(err)
-	}
-	_, err = peerConnection.AddTrack(audioTrack)
-	if err != nil {
-		panic(err)
-	}
-
-	// Create a video track
-	videoTrack, err = peerConnection.NewTrack(webrtc.DefaultPayloadTypeVP8, rand.Uint32(), "video", "pion2")
-	if err != nil {
-		panic(err)
-	}
-	_, err = peerConnection.AddTrack(videoTrack)
-	if err != nil {
-		panic(err)
+	var ws *websocket.Conn
+	for {
+		ws = reconnect()
+		hub(ws)
+		time.Sleep(30 * time.Second)
+		log.Println("Reconnect with the signaling server")
 	}
 }
 
-
-func reWebRTC(close chan string,offer webrtc.SessionDescription){
-	// Set the remote SessionDescription
-	err = peerConnection.SetRemoteDescription(offer)
-		if err != nil {
-		panic(err)
-	}
-
-	// Create an answer
-	answer, err := peerConnection.CreateAnswer(nil)
-	if err != nil {
-		panic(err)
-	}
-
-	// Sets the LocalDescription, and starts our UDP listeners
-	err = peerConnection.SetLocalDescription(answer)
-	if err != nil {
-		panic(err)
-	}
-
-	// Output the answer in base64 so we can paste it in browser
-	req := &WSRequest{}
-	req.Type = "answer"
-	req.DeviceId = deviceId
-	req.Data = signal.Encode(answer)
- 
-	data, _ := json.Marshal(req)
-	conn.WriteMessage(websocket.TextMessage, data)
-
-	// Start pushing buffers on these tracks
-	gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc).Start()
-	gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, *videoSrc).Start()
-
-	<- close
-}
-
-func reConnection(){
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/answer"}
+func reconnect() *websocket.Conn {
+	u := url.URL{Scheme: "ws", Host: wsAddr, Path: "/answer"}
 	fmt.Println("connecting to ", u.String())
 	
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		fmt.Println("dial:", err)
 		return
 	}
-	defer conn.Close()
 
-	close := make(chan string)
-	conn.SetCloseHandler(func(code int, text string) error {
-		close <- "close"
-		initWebRTC()
-		go reConnection()
-		return nil
-	})
-
-	req := &WSRequest{}
+	req := &Session{}
 	req.Type = "online"
 	req.DeviceId = deviceId
  
-    data, _ := json.Marshal(req)
-	conn.WriteMessage(websocket.TextMessage, data)
-	
-	for{
-		_, msg, err := client.conn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure,websocket.CloseNoStatusReceived) {
-				fmt.Printf("error: %v", err)
-			}
-			return
-		}
-	
-		resp := make(map[string]string)
-		err = json.Unmarshal(msg, &resp)
-
-		if resp["type"] == "offer" {
-			offer := webrtc.SessionDescription{}
-			signal.Decode(resp["data"], &offer)
-			go reWebRTC(close,&offer)
-		}
+	if err = ws.WriteJSON(req); err != nil {
+		return err
 	}
+
+	return ws
 }
