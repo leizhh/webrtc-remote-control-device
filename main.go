@@ -8,8 +8,8 @@ import(
 	"net/url"
 	"github.com/gorilla/websocket"
 	"encoding/json"
-	gst "github.com/pion/example-webrtc-applications/internal/gstreamer-src"
-	"github.com/pion/example-webrtc-applications/internal/signal"
+	gst "webrtc-device/lib/gstreamer-src"
+	"webrtc-device/lib/signal"
 )
 
 type WSRequest() struct {
