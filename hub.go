@@ -1,7 +1,14 @@
 package main
 
 import (
-
+	"fmt"
+	"github.com/pion/webrtc/v2"
+	"github.com/gorilla/websocket"
+	"webrtc-device/lib/signal"
+	"math/rand"
+	"net"
+	"io"
+	gst "webrtc-device/lib/gstreamer-src"
 )
 
 type Wrap struct {
@@ -9,9 +16,7 @@ type Wrap struct {
 }
 
 var (
-	audioTrack webrtc.Track
-	videoTrack webrtc.Track
-	peerConnection webrtc.*PeerConnection
+	peerConnection *webrtc.PeerConnection
 )
 
 func (rtc *Wrap) Write(data []byte) (int, error) {
@@ -20,9 +25,9 @@ func (rtc *Wrap) Write(data []byte) (int, error) {
 }
 
 func hub(ws *websocket.Conn) {
-	var msg Session
+	var resp Session
 	for {
-		err := ws.ReadJSON(&msg)
+		err := ws.ReadJSON(&resp)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure,websocket.CloseNoStatusReceived) {
 				fmt.Printf("error: %v", err)
@@ -32,10 +37,10 @@ func hub(ws *websocket.Conn) {
 
 		if resp.Type == "offer" {
 			offer := webrtc.SessionDescription{}
-			signal.Decode(resp["data"], &offer)
+			signal.Decode(resp.Data, &offer)
 			err = startRTC(ws, offer)
 			if err != nil {
-				log.Println(err)
+				fmt.Println("start rtc:",err)
 			}
 		}
 	}
@@ -56,7 +61,7 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription) error{
 
 	
 	// Create a audio track
-	audioTrack, err = peerConnection.NewTrack(webrtc.DefaultPayloadTypeOpus, rand.Uint32(), "audio", "pion1")
+	audioTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeOpus, rand.Uint32(), "audio", "pion1")
 	if err != nil {
 		return err
 	}
@@ -66,7 +71,7 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription) error{
 	}
 
 	// Create a video track
-	videoTrack, err = peerConnection.NewTrack(webrtc.DefaultPayloadTypeVP8, rand.Uint32(), "video", "pion2")
+	videoTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeVP8, rand.Uint32(), "video", "pion2")
 	if err != nil {
 		return err
 	}
@@ -106,13 +111,16 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription) error{
 	// Start pushing buffers on these tracks
 	gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc).Start()
 	gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, *videoSrc).Start()
+
+	for{}
+	//return nil
 }
 
 func DataChannel(dc *webrtc.DataChannel, ssh net.Conn) {
 	dc.OnOpen(func() {	
 		err := dc.SendText("OPEN_RTC_CHANNEL")
 		if err != nil{
-			log.Println("write data error:", err)
+			fmt.Println("write data error:", err)
 		}
 		io.Copy(&Wrap{dc}, ssh)
 	})
@@ -120,7 +128,7 @@ func DataChannel(dc *webrtc.DataChannel, ssh net.Conn) {
 		ssh.Write(msg.Data)
 	})
 	dc.OnClose(func() {
-		log.Printf("Close SSH socket")
+		fmt.Printf("Close SSH socket")
 		ssh.Close()
 	})
 }

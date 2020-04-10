@@ -2,7 +2,9 @@ package gst
 
 /*
 #cgo pkg-config: gstreamer-1.0 gstreamer-app-1.0
+
 #include "gst.h"
+
 */
 import "C"
 import (

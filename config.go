@@ -16,5 +16,7 @@ var (
 	deviceId = "51a8da4c-a9ce-403f-999b-6f0445e52d74"
 	defaultWSAddr = "118.89.111.54:8080"
 	defaultAudioSrc = "audiotestsrc"
-	defaultVideoSrc = "autovideosrc ! video/x-raw, width=320, height=240 ! videoconvert ! queue"
+	defaultVideoSrc = "videotestsrc"
+	//defaultAudioSrc = "uridecodebin uri=file:///home/leizhh/Videos/test.mp4 ! queue ! audioconvert"
+	//defaultVideoSrc = "uridecodebin uri=file:///home/leizhh/Videos/test.mp4 ! videoscale ! video/x-raw, width=320, height=240 ! queue "
 )

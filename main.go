@@ -3,17 +3,12 @@ package main
 import (
 	"fmt"
 	"flag"
-	"math/rand"
-	"github.com/pion/webrtc/v2"
 	"net/url"
 	"time"
 	"github.com/gorilla/websocket"
-	"encoding/json"
-	gst "webrtc-device/lib/gstreamer-src"
-	"webrtc-device/lib/signal"
 )
 
-type Session() struct {
+type Session struct {
 	Type string `json:"type"`
 	Msg string `json:"msg"`
 	Data string `json:"data"`
@@ -21,9 +16,9 @@ type Session() struct {
 }
 
 var (
-	wsAddr string
-	audioSrc string
-	videoSrc string
+	wsAddr *string
+	audioSrc *string
+	videoSrc *string
 )
 
 func main(){
@@ -37,18 +32,19 @@ func main(){
 		ws = reconnect()
 		hub(ws)
 		time.Sleep(30 * time.Second)
-		log.Println("Reconnect with the signaling server")
+		fmt.Println("Reconnect with the signaling server")
 	}
 }
 
 func reconnect() *websocket.Conn {
-	u := url.URL{Scheme: "ws", Host: wsAddr, Path: "/answer"}
+	u := url.URL{Scheme: "ws", Host: *wsAddr, Path: "/answer"}
 	fmt.Println("connecting to ", u.String())
 	
 	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		fmt.Println("dial:", err)
-		return
+		fmt.Println(err)
+		return nil
 	}
 
 	req := &Session{}
@@ -56,7 +52,8 @@ func reconnect() *websocket.Conn {
 	req.DeviceId = deviceId
  
 	if err = ws.WriteJSON(req); err != nil {
-		return err
+		fmt.Println(err)
+		return nil
 	}
 
 	return ws
