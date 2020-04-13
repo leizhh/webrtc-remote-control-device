@@ -31,7 +31,7 @@ func main(){
 	for {
 		ws = reconnect()
 		hub(ws)
-		time.Sleep(30 * time.Second)
+		time.Sleep(5 * time.Second)
 		fmt.Println("Reconnect with the signaling server")
 	}
 }

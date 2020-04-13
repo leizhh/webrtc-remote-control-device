@@ -26,19 +26,28 @@ func (rtc *Wrap) Write(data []byte) (int, error) {
 
 func hub(ws *websocket.Conn) {
 	var resp Session
+	stopRTC := make(chan string,1)
+	ws.SetCloseHandler(func(code int, text string) error {
+		fmt.Println("client is offline")
+		stopRTC <- "close"
+		return nil
+	})
+
 	for {
 		err := ws.ReadJSON(&resp)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure,websocket.CloseNoStatusReceived) {
 				fmt.Printf("error: %v", err)
 			}
+			stopRTC <- "close"
+			fmt.Println("RTC has been closed")
 			return
 		}
 
 		if resp.Type == "offer" {
 			offer := webrtc.SessionDescription{}
 			signal.Decode(resp.Data, &offer)
-			err = startRTC(ws, offer)
+			go startRTC(ws, offer, stopRTC)
 			if err != nil {
 				fmt.Println("start rtc:",err)
 			}
@@ -46,11 +55,12 @@ func hub(ws *websocket.Conn) {
 	}
 }
 
-func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription) error{
+func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan string){
 	// Create a new RTCPeerConnection
 	peerConnection, err := webrtc.NewPeerConnection(configRTC)
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return
 	}
 
 	// Set the handler for ICE connection state
@@ -63,39 +73,44 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription) error{
 	// Create a audio track
 	audioTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeOpus, rand.Uint32(), "audio", "pion1")
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return
 	}
 	_, err = peerConnection.AddTrack(audioTrack)
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return
 	}
 
 	// Create a video track
 	videoTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeVP8, rand.Uint32(), "video", "pion2")
 	if err != nil {
-		return err
+		fmt.Println(err)
 	}
 	_, err = peerConnection.AddTrack(videoTrack)
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return
 	}
 
 	// Set the remote SessionDescription
 	err = peerConnection.SetRemoteDescription(offer)
-		if err != nil {
-		return err
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 
 	// Create an answer
 	answer, err := peerConnection.CreateAnswer(nil)
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return
 	}
 
 	// Sets the LocalDescription, and starts our UDP listeners
 	err = peerConnection.SetLocalDescription(answer)
 	if err != nil {
-		return err
+		fmt.Println(err)
 	}
 
 	// Output the answer in base64 so we can paste it in browser
@@ -105,15 +120,25 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription) error{
 	req.Data = signal.Encode(answer)
  
 	if err = ws.WriteJSON(req); err != nil {
-		return err
+		fmt.Println(err)
+		return
 	}
 
 	// Start pushing buffers on these tracks
-	gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc).Start()
-	gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, *videoSrc).Start()
+	audioPipeline := gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc)
+	videoPipeline := gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, *videoSrc)
+	audioPipeline.Start()
+	videoPipeline.Start()
 
-	for{}
-	//return nil
+	
+	<- stopRTC
+	close(stopRTC)
+
+	audioPipeline.Stop()
+	videoPipeline.Stop()
+	peerConnection.Close()
+
+	return
 }
 
 func DataChannel(dc *webrtc.DataChannel, ssh net.Conn) {
