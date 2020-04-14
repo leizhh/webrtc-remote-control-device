@@ -93,6 +93,22 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 		return
 	}
 
+	peerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
+		if dc.Label() == "SSH" {
+			ssh, err := net.Dial("tcp", fmt.Sprintf("%s:%d", SSHHost, SSHPort))
+			if err != nil {
+				fmt.Println("ssh dial failed:", err)
+				peerConnection.Close()
+			} else {
+				fmt.Println("Connect SSH socket")
+				sshDataChannel(dc, ssh)
+			}
+		}
+		if dc.Label() == "Control" {
+			
+		}
+	})
+
 	// Set the remote SessionDescription
 	err = peerConnection.SetRemoteDescription(offer)
 	if err != nil {
@@ -141,7 +157,23 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 	return
 }
 
-func DataChannel(dc *webrtc.DataChannel, ssh net.Conn) {
+func controlDataChannel(dc *webrtc.DataChannel) {
+	dc.OnOpen(func() {	
+		err := dc.SendText("please input command")
+		if err != nil{
+			fmt.Println("write data error:", err)
+		}
+	})
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		fmt.Println(msg)
+	})
+	dc.OnClose(func() {
+		fmt.Printf("Close Control socket")
+		ssh.Close()
+	})
+}
+
+func sshDataChannel(dc *webrtc.DataChannel, ssh net.Conn) {
 	dc.OnOpen(func() {	
 		err := dc.SendText("OPEN_RTC_CHANNEL")
 		if err != nil{
