@@ -20,5 +20,5 @@ var (
 	defaultAudioSrc = "audiotestsrc"
 	defaultVideoSrc = "autovideosrc ! video/x-raw, width=320, height=240 ! videoconvert ! queue"
 	SSHHost = "127.0.0.1"
-	SSHPort = "22"
+	SSHPort = 22
 )

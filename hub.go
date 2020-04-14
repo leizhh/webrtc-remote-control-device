@@ -105,7 +105,7 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 			}
 		}
 		if dc.Label() == "Control" {
-			
+			controlDataChannel(dc)
 		}
 	})
 
@@ -165,11 +165,11 @@ func controlDataChannel(dc *webrtc.DataChannel) {
 		}
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		fmt.Println(msg)
+		fmt.Println(msg.Data)
+		dc.SendText("{\"result\":\"success\"}")
 	})
 	dc.OnClose(func() {
 		fmt.Printf("Close Control socket")
-		ssh.Close()
 	})
 }
 
