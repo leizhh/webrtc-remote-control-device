@@ -6,8 +6,6 @@ import (
 	"github.com/gorilla/websocket"
 	"webrtc-device/lib/signal"
 	"math/rand"
-	"net"
-	"io"
 	gst "webrtc-device/lib/gstreamer-src"
 )
 
@@ -95,14 +93,7 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 
 	peerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
 		if dc.Label() == "SSH" {
-			ssh, err := net.Dial("tcp", fmt.Sprintf("%s:%d", SSHHost, SSHPort))
-			if err != nil {
-				fmt.Println("ssh dial failed:", err)
-				peerConnection.Close()
-			} else {
-				fmt.Println("Connect SSH socket")
-				sshDataChannel(dc, ssh)
-			}
+			sshDataChannel(dc)
 		}
 		if dc.Label() == "Control" {
 			controlDataChannel(dc)
@@ -162,10 +153,11 @@ func controlDataChannel(dc *webrtc.DataChannel) {
 		err := dc.SendText("please input command")
 		if err != nil{
 			fmt.Println("write data error:", err)
+			dc.Close()
 		}
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		fmt.Println(msg.Data)
+		fmt.Println(string(msg.Data))
 		dc.SendText("{\"result\":\"success\"}")
 	})
 	dc.OnClose(func() {
@@ -173,19 +165,41 @@ func controlDataChannel(dc *webrtc.DataChannel) {
 	})
 }
 
-func sshDataChannel(dc *webrtc.DataChannel, ssh net.Conn) {
+func sshDataChannel(dc *webrtc.DataChannel) {
+	var user string
+	var password string
+
 	dc.OnOpen(func() {	
-		err := dc.SendText("OPEN_RTC_CHANNEL")
-		if err != nil{
-			fmt.Println("write data error:", err)
+		for {
+			rtcin := make(chan string)
+			step := make(chan string)
+			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+				user=string(msg.Data)
+				fmt.Println(user)
+				dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+					password=string(msg.Data)
+					fmt.Println(password)
+					step <- ""
+					dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+						fmt.Println(string(msg.Data))
+						rtcin <- string(msg.Data)+"\n"
+					})
+				})
+			})
+			
+			<- step
+			sshClient,err := initSSH(SSHHost,user,password,SSHPort)
+			if err != nil{
+				dc.SendText(err.Error())
+				continue
+			}
+			dc.SendText("success")
+
+			go sshHandler(sshClient,dc,rtcin)
+			break
 		}
-		io.Copy(&Wrap{dc}, ssh)
-	})
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		ssh.Write(msg.Data)
 	})
 	dc.OnClose(func() {
 		fmt.Printf("Close SSH socket")
-		ssh.Close()
 	})
 }
