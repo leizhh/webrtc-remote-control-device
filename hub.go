@@ -7,6 +7,8 @@ import (
 	"webrtc-device/lib/signal"
 	"math/rand"
 	gst "webrtc-device/lib/gstreamer-src"
+	"strconv"
+	"strings"
 )
 
 type Wrap struct {
@@ -173,6 +175,7 @@ func sshDataChannel(dc *webrtc.DataChannel) {
 		for {
 			rtcin := make(chan string)
 			step := make(chan string)
+
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 				user=string(msg.Data)
 				fmt.Println(user)
@@ -180,22 +183,31 @@ func sshDataChannel(dc *webrtc.DataChannel) {
 					password=string(msg.Data)
 					fmt.Println(password)
 					step <- ""
-					dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-						fmt.Println(string(msg.Data))
-						rtcin <- string(msg.Data)+"\n"
-					})
 				})
 			})
 			
 			<- step
-			sshClient,err := initSSH(SSHHost,user,password,SSHPort)
-			if err != nil{
+			sshSession,err := initSSH(SSHHost,user,password,SSHPort,dc,rtcin)
+			if err != nil {
 				dc.SendText(err.Error())
 				continue
 			}
-			dc.SendText("success")
+			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+				msg_ := string(msg.Data)
+				fmt.Println(msg_)
 
-			go sshHandler(sshClient,dc,rtcin)
+				if len(msg_) >= 10 {
+					ss := strings.Fields(msg_)
+					if ss[0] == "resize" {
+						cols, _ := strconv.Atoi(ss[1])
+						rows, _ := strconv.Atoi(ss[2])
+						sshSession.WindowChange(cols,rows)
+						fmt.Println(msg_)
+						return
+					}		
+				}
+				rtcin <- msg_
+			})
 			break
 		}
 	})

@@ -9,6 +9,11 @@ var (
 		ICEServers: []webrtc.ICEServer{
 			{
 				URLs: []string{"stun:118.89.111.54:3478"},
+			},{
+				URLs: []string{"turn:118.89.111.54:3478"},
+				Username:"leizhh",
+				Credential:"leizhh",
+				CredentialType:webrtc.ICECredentialTypePassword,
 			},
 		},
 	}

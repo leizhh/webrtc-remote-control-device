@@ -8,12 +8,8 @@ import (
     "github.com/pion/webrtc/v2"
 )
 
-func sshHandler(sshClient *ssh.Client,dc *webrtc.DataChannel,rtcin chan string)error{
+func sshHandler(sshClient *ssh.Client,sshSession *ssh.Session,dc *webrtc.DataChannel,rtcin chan string)error{
     defer sshClient.Close()
-    sshSession, err := sshClient.NewSession()
-    if err != nil {
-        return err
-    }
     defer sshSession.Close()
 
     sshSession.Stdout = &Wrap{dc}
@@ -47,11 +43,10 @@ func sshHandler(sshClient *ssh.Client,dc *webrtc.DataChannel,rtcin chan string)e
 func stdinHandler(sshin io.Writer,rtcin chan string) {
     for input := range rtcin{
         sshin.Write([]byte(input))
-        fmt.Println("write:",input)
     }
 }
 
-func initSSH(sshHost,sshUser,sshPassword string,sshPort int) (*ssh.Client,error) {
+func initSSH(sshHost,sshUser,sshPassword string,sshPort int, dc *webrtc.DataChannel, rtcin chan string) (*ssh.Session,error) {
     //创建sshp登陆配置
     config := &ssh.ClientConfig{
         Timeout:         time.Second,//ssh 连接time out 时间一秒钟, 如果ssh验证错误 会在一秒内返回
@@ -64,8 +59,18 @@ func initSSH(sshHost,sshUser,sshPassword string,sshPort int) (*ssh.Client,error)
     //dial 获取ssh client
     addr := fmt.Sprintf("%s:%d", sshHost, sshPort)
     sshClient, err := ssh.Dial("tcp", addr, config)
+
+    if err != nil{
+        return nil,err
+    }
+
+    sshSession, err := sshClient.NewSession()
     if err != nil {
         return nil,err
     }
-    return sshClient,nil
+    dc.SendText("success")
+    
+    go sshHandler(sshClient,sshSession,dc,rtcin)
+    
+    return sshSession,nil
 }
