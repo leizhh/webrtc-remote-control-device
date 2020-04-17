@@ -27,24 +27,25 @@ func main(){
 	wsAddr = flag.String("websocket-addr", defaultWSAddr, "websocket service address")
 	flag.Parse()
 
-	var ws *websocket.Conn
 	for {
-		ws = reconnect()
-		hub(ws)
+		ws,err := reconnect()
+		if err != nil {
+			fmt.Println(err)
+		}else{
+			hub(ws)
+		}
 		time.Sleep(5 * time.Second)
 		fmt.Println("Reconnect with the signaling server")
 	}
 }
 
-func reconnect() *websocket.Conn {
+func reconnect()(*websocket.Conn,error) {
 	u := url.URL{Scheme: "ws", Host: *wsAddr, Path: "/answer"}
 	fmt.Println("connecting to ", u.String())
 	
 	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		fmt.Println("dial:", err)
-		fmt.Println(err)
-		return nil
+		return nil,err
 	}
 
 	req := &Session{}
@@ -52,9 +53,8 @@ func reconnect() *websocket.Conn {
 	req.DeviceId = deviceId
  
 	if err = ws.WriteJSON(req); err != nil {
-		fmt.Println(err)
-		return nil
+		return nil,err
 	}
 
-	return ws
+	return ws,nil
 }

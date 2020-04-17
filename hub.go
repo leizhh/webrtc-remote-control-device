@@ -52,6 +52,12 @@ func hub(ws *websocket.Conn) {
 				fmt.Println("start rtc:",err)
 			}
 		}
+
+		if resp.Type == "error" {
+			fmt.Println(resp.Msg)
+			ws.Close()
+			return
+		}
 	}
 }
 
