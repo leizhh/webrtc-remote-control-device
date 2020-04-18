@@ -1,37 +1,37 @@
 package main
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
+	"github.com/gorilla/websocket"
 	"net/url"
 	"time"
-	"github.com/gorilla/websocket"
 )
 
 type Session struct {
-	Type string `json:"type"`
-	Msg string `json:"msg"`
-	Data string `json:"data"`
+	Type     string `json:"type"`
+	Msg      string `json:"msg"`
+	Data     string `json:"data"`
 	DeviceId string `json:"device_id"`
 }
 
 var (
-	wsAddr *string
+	wsAddr   *string
 	audioSrc *string
 	videoSrc *string
 )
 
-func main(){
+func main() {
 	audioSrc = flag.String("audio-src", defaultAudioSrc, "GStreamer audio src")
 	videoSrc = flag.String("video-src", defaultVideoSrc, "GStreamer video src")
 	wsAddr = flag.String("websocket-addr", defaultWSAddr, "websocket service address")
 	flag.Parse()
 
 	for {
-		ws,err := reconnect()
+		ws, err := reconnect()
 		if err != nil {
 			fmt.Println(err)
-		}else{
+		} else {
 			hub(ws)
 		}
 		time.Sleep(5 * time.Second)
@@ -39,22 +39,22 @@ func main(){
 	}
 }
 
-func reconnect()(*websocket.Conn,error) {
+func reconnect() (*websocket.Conn, error) {
 	u := url.URL{Scheme: "ws", Host: *wsAddr, Path: "/answer"}
 	fmt.Println("connecting to ", u.String())
-	
+
 	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
 	req := &Session{}
 	req.Type = "online"
 	req.DeviceId = deviceId
- 
+
 	if err = ws.WriteJSON(req); err != nil {
-		return nil,err
+		return nil, err
 	}
 
-	return ws,nil
+	return ws, nil
 }

@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/pion/webrtc/v2"
 	"github.com/gorilla/websocket"
-	"webrtc-device/lib/signal"
+	"github.com/pion/webrtc/v2"
 	"math/rand"
-	gst "webrtc-device/lib/gstreamer-src"
 	"strconv"
 	"strings"
+	gst "webrtc-device/lib/gstreamer-src"
+	"webrtc-device/lib/signal"
 )
 
 type Wrap struct {
@@ -26,7 +26,7 @@ func (rtc *Wrap) Write(data []byte) (int, error) {
 
 func hub(ws *websocket.Conn) {
 	var resp Session
-	stopRTC := make(chan string,1)
+	stopRTC := make(chan string, 1)
 	ws.SetCloseHandler(func(code int, text string) error {
 		fmt.Println("client is offline")
 		stopRTC <- "close"
@@ -36,7 +36,7 @@ func hub(ws *websocket.Conn) {
 	for {
 		err := ws.ReadJSON(&resp)
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure,websocket.CloseNoStatusReceived) {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
 				fmt.Printf("error: %v", err)
 			}
 			stopRTC <- "close"
@@ -49,7 +49,7 @@ func hub(ws *websocket.Conn) {
 			signal.Decode(resp.Data, &offer)
 			go startRTC(ws, offer, stopRTC)
 			if err != nil {
-				fmt.Println("start rtc:",err)
+				fmt.Println("start rtc:", err)
 			}
 		}
 
@@ -61,7 +61,7 @@ func hub(ws *websocket.Conn) {
 	}
 }
 
-func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan string){
+func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan string) {
 	// Create a new RTCPeerConnection
 	peerConnection, err := webrtc.NewPeerConnection(configRTC)
 	if err != nil {
@@ -75,7 +75,6 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 		fmt.Printf("Connection State has changed %s \n", connectionState.String())
 	})
 
-	
 	// Create a audio track
 	audioTrack, err := peerConnection.NewTrack(webrtc.DefaultPayloadTypeOpus, rand.Uint32(), "audio", "pion1")
 	if err != nil {
@@ -133,7 +132,7 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 	req.Type = "answer"
 	req.DeviceId = deviceId
 	req.Data = signal.Encode(answer)
- 
+
 	if err = ws.WriteJSON(req); err != nil {
 		fmt.Println(err)
 		return
@@ -145,8 +144,7 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 	audioPipeline.Start()
 	videoPipeline.Start()
 
-	
-	<- stopRTC
+	<-stopRTC
 	close(stopRTC)
 
 	audioPipeline.Stop()
@@ -157,16 +155,16 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 }
 
 func controlDataChannel(dc *webrtc.DataChannel) {
-	dc.OnOpen(func() {	
+	dc.OnOpen(func() {
 		err := dc.SendText("please input command")
-		if err != nil{
+		if err != nil {
 			fmt.Println("write data error:", err)
 			dc.Close()
 		}
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		fmt.Println(string(msg.Data))
-		dc.SendText("{\"result\":\"success\"}")
+		result := controlHandler(msg.Data)
+		dc.SendText(result)
 	})
 	dc.OnClose(func() {
 		fmt.Printf("Close Control socket")
@@ -177,23 +175,23 @@ func sshDataChannel(dc *webrtc.DataChannel) {
 	var user string
 	var password string
 
-	dc.OnOpen(func() {	
+	dc.OnOpen(func() {
 		for {
 			rtcin := make(chan string)
 			step := make(chan string)
 
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				user=string(msg.Data)
+				user = string(msg.Data)
 				fmt.Println(user)
 				dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-					password=string(msg.Data)
+					password = string(msg.Data)
 					fmt.Println(password)
 					step <- ""
 				})
 			})
-			
-			<- step
-			sshSession,err := initSSH(SSHHost,user,password,SSHPort,dc,rtcin)
+
+			<-step
+			sshSession, err := initSSH(SSHHost, user, password, SSHPort, dc, rtcin)
 			if err != nil {
 				dc.SendText(err.Error())
 				continue
@@ -207,10 +205,10 @@ func sshDataChannel(dc *webrtc.DataChannel) {
 					if ss[0] == "resize" {
 						cols, _ := strconv.Atoi(ss[1])
 						rows, _ := strconv.Atoi(ss[2])
-						sshSession.WindowChange(cols,rows)
+						sshSession.WindowChange(cols, rows)
 						fmt.Println(msg_)
 						return
-					}		
+					}
 				}
 				rtcin <- msg_
 			})

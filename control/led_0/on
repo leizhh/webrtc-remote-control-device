@@ -1,0 +1,1 @@
+echo 1 > /sys/class/leds/status_led/brightness
