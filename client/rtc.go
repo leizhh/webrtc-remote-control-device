@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"fmt"
@@ -7,63 +7,24 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"webrtc-device/config"
 	gst "webrtc-device/lib/gstreamer-src"
 	"webrtc-device/lib/signal"
 )
 
-type Wrap struct {
-	*webrtc.DataChannel
-}
-
 var (
-	peerConnection *webrtc.PeerConnection
+	audioSrc *string
+	videoSrc *string
 )
 
-func (rtc *Wrap) Write(data []byte) (int, error) {
-	err := rtc.DataChannel.Send(data)
-	return len(data), err
+func SetMediaSrc(audio *string, video *string) {
+	audioSrc = audio
+	videoSrc = video
 }
 
-func hub(ws *websocket.Conn) {
-	var resp Session
-	stopRTC := make(chan string, 1)
-	ws.SetCloseHandler(func(code int, text string) error {
-		fmt.Println("client is offline")
-		stopRTC <- "close"
-		return nil
-	})
-
-	for {
-		err := ws.ReadJSON(&resp)
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
-				fmt.Printf("error: %v", err)
-			}
-			stopRTC <- "close"
-			fmt.Println("RTC has been closed")
-			return
-		}
-
-		if resp.Type == "offer" {
-			offer := webrtc.SessionDescription{}
-			signal.Decode(resp.Data, &offer)
-			go startRTC(ws, offer, stopRTC)
-			if err != nil {
-				fmt.Println("start rtc:", err)
-			}
-		}
-
-		if resp.Type == "error" {
-			fmt.Println(resp.Msg)
-			ws.Close()
-			return
-		}
-	}
-}
-
-func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan string) {
+func startRTC(ws *websocket.Conn, offer string, stopRTC chan string) {
 	// Create a new RTCPeerConnection
-	peerConnection, err := webrtc.NewPeerConnection(configRTC)
+	peerConnection, err := webrtc.NewPeerConnection(config.RTCConfig)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -81,8 +42,7 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 		fmt.Println(err)
 		return
 	}
-	_, err = peerConnection.AddTrack(audioTrack)
-	if err != nil {
+	if _, err = peerConnection.AddTrack(audioTrack); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -92,23 +52,24 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 	if err != nil {
 		fmt.Println(err)
 	}
-	_, err = peerConnection.AddTrack(videoTrack)
-	if err != nil {
+	if _, err = peerConnection.AddTrack(videoTrack); err != nil {
 		fmt.Println(err)
 		return
 	}
 
 	peerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
 		if dc.Label() == "SSH" {
-			sshDataChannel(dc)
+			sshDataChannelHandler(dc)
 		}
 		if dc.Label() == "Control" {
-			controlDataChannel(dc)
+			controlDataChannelHandler(dc)
 		}
 	})
 
 	// Set the remote SessionDescription
-	err = peerConnection.SetRemoteDescription(offer)
+	offer_ := webrtc.SessionDescription{}
+	signal.Decode(offer, &offer_)
+	err = peerConnection.SetRemoteDescription(offer_)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -130,7 +91,7 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 	// Output the answer in base64 so we can paste it in browser
 	req := &Session{}
 	req.Type = "answer"
-	req.DeviceId = deviceId
+	req.DeviceId = config.DeviceId
 	req.Data = signal.Encode(answer)
 
 	if err = ws.WriteJSON(req); err != nil {
@@ -154,7 +115,7 @@ func startRTC(ws *websocket.Conn, offer webrtc.SessionDescription, stopRTC chan 
 	return
 }
 
-func controlDataChannel(dc *webrtc.DataChannel) {
+func controlDataChannelHandler(dc *webrtc.DataChannel) {
 	dc.OnOpen(func() {
 		err := dc.SendText("please input command")
 		if err != nil {
@@ -171,12 +132,11 @@ func controlDataChannel(dc *webrtc.DataChannel) {
 	})
 }
 
-func sshDataChannel(dc *webrtc.DataChannel) {
-	var user string
-	var password string
-
+func sshDataChannelHandler(dc *webrtc.DataChannel) {
 	dc.OnOpen(func() {
 		for {
+			var user string
+			var password string
 			rtcin := make(chan string)
 			step := make(chan string)
 
@@ -191,14 +151,13 @@ func sshDataChannel(dc *webrtc.DataChannel) {
 			})
 
 			<-step
-			sshSession, err := initSSH(SSHHost, user, password, SSHPort, dc, rtcin)
+			sshSession, err := initSSH(user, password, config.SSHHost, config.SSHPort, dc, rtcin)
 			if err != nil {
 				dc.SendText(err.Error())
 				continue
 			}
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 				msg_ := string(msg.Data)
-				fmt.Println(msg_)
 
 				if len(msg_) >= 10 {
 					ss := strings.Fields(msg_)
@@ -210,6 +169,7 @@ func sshDataChannel(dc *webrtc.DataChannel) {
 						return
 					}
 				}
+
 				rtcin <- msg_
 			})
 			break
