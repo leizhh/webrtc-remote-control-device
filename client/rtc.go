@@ -7,24 +7,13 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
-	"webrtc-device/config"
 	gst "webrtc-device/lib/gstreamer-src"
 	"webrtc-device/lib/signal"
 )
 
-var (
-	audioSrc *string
-	videoSrc *string
-)
-
-func SetMediaSrc(audio *string, video *string) {
-	audioSrc = audio
-	videoSrc = video
-}
-
 func startRTC(ws *websocket.Conn, offer string, stopRTC chan string) {
 	// Create a new RTCPeerConnection
-	peerConnection, err := webrtc.NewPeerConnection(config.RTCConfig)
+	peerConnection, err := webrtc.NewPeerConnection(Conf.RTCConfig)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -91,7 +80,7 @@ func startRTC(ws *websocket.Conn, offer string, stopRTC chan string) {
 	// Output the answer in base64 so we can paste it in browser
 	req := &Session{}
 	req.Type = "answer"
-	req.DeviceId = config.DeviceId
+	req.DeviceId = Conf.DeviceId
 	req.Data = signal.Encode(answer)
 
 	if err = ws.WriteJSON(req); err != nil {
@@ -100,8 +89,8 @@ func startRTC(ws *websocket.Conn, offer string, stopRTC chan string) {
 	}
 
 	// Start pushing buffers on these tracks
-	audioPipeline := gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, *audioSrc)
-	videoPipeline := gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, *videoSrc)
+	audioPipeline := gst.CreatePipeline(webrtc.Opus, []*webrtc.Track{audioTrack}, Conf.AudioSrc)
+	videoPipeline := gst.CreatePipeline(webrtc.VP8, []*webrtc.Track{videoTrack}, Conf.VideoSrc)
 	audioPipeline.Start()
 	videoPipeline.Start()
 
@@ -142,16 +131,16 @@ func sshDataChannelHandler(dc *webrtc.DataChannel) {
 
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 				user = string(msg.Data)
-				fmt.Println(user)
+				//fmt.Println(user)
 				dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 					password = string(msg.Data)
-					fmt.Println(password)
+					//fmt.Println(password)
 					step <- ""
 				})
 			})
 
 			<-step
-			sshSession, err := initSSH(user, password, config.SSHHost, config.SSHPort, dc, rtcin)
+			sshSession, err := initSSH(user, password, dc, rtcin)
 			if err != nil {
 				dc.SendText(err.Error())
 				continue
@@ -165,7 +154,7 @@ func sshDataChannelHandler(dc *webrtc.DataChannel) {
 						cols, _ := strconv.Atoi(ss[1])
 						rows, _ := strconv.Atoi(ss[2])
 						sshSession.WindowChange(cols, rows)
-						fmt.Println(msg_)
+						//fmt.Println(msg_)
 						return
 					}
 				}

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func initSSH(sshUser, sshPassword, sshHost string, sshPort int, dc *webrtc.DataChannel, rtcin chan string) (*ssh.Session, error) {
+func initSSH(sshUser, sshPassword string, dc *webrtc.DataChannel, rtcin chan string) (*ssh.Session, error) {
 	//创建sshp登陆配置
 	config := &ssh.ClientConfig{
 		Timeout:         time.Second, //ssh 连接time out 时间一秒钟, 如果ssh验证错误 会在一秒内返回
@@ -19,7 +19,7 @@ func initSSH(sshUser, sshPassword, sshHost string, sshPort int, dc *webrtc.DataC
 	config.Auth = []ssh.AuthMethod{ssh.Password(sshPassword)}
 
 	//dial 获取ssh client
-	addr := fmt.Sprintf("%s:%d", sshHost, sshPort)
+	addr := fmt.Sprintf("%s:%d", Conf.SSHHost, Conf.SSHPort)
 	sshClient, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
 		return nil, err

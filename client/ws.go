@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"net/url"
-	"webrtc-device/config"
 )
 
 type Session struct {
@@ -14,8 +13,8 @@ type Session struct {
 	DeviceId string `json:"device_id"`
 }
 
-func Reconnect(serverAddr *string) {
-	u := url.URL{Scheme: "ws", Host: *serverAddr, Path: "/answer"}
+func Reconnect() {
+	u := url.URL{Scheme: "ws", Host: Conf.ServerAddr, Path: "/answer"}
 	fmt.Println("connecting to ", u.String())
 
 	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -26,7 +25,7 @@ func Reconnect(serverAddr *string) {
 
 	req := &Session{}
 	req.Type = "online"
-	req.DeviceId = config.DeviceId
+	req.DeviceId = Conf.DeviceId
 
 	if err := ws.WriteJSON(req); err != nil {
 		fmt.Println(err)
