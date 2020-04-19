@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"net/url"
+	"os"
+	"os/signal"
 )
 
 type Session struct {
@@ -23,6 +25,10 @@ func Reconnect() {
 		return
 	}
 
+	signal_ch := make(chan os.Signal, 1)
+	signal.Notify(signal_ch, os.Interrupt, os.Kill)
+	go signalHandler(ws, signal_ch)
+
 	req := &Session{}
 	req.Type = "online"
 	req.DeviceId = Conf.DeviceId
@@ -33,6 +39,7 @@ func Reconnect() {
 	}
 
 	RTCReconnect(ws)
+	signal.Stop(signal_ch)
 }
 
 func RTCReconnect(ws *websocket.Conn) {
@@ -64,5 +71,17 @@ func RTCReconnect(ws *websocket.Conn) {
 			ws.Close()
 			return
 		}
+	}
+}
+
+func signalHandler(ws *websocket.Conn, signal_ch chan os.Signal) {
+	for msg := range signal_ch {
+		fmt.Println("signal:", msg)
+		err := ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		if err != nil {
+			fmt.Println("write close:", err)
+		}
+		ws.Close()
+		os.Exit(0)
 	}
 }

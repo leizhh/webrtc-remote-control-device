@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	if err := client.InitConfig();err != nil {
+	if err := client.InitConfig(); err != nil {
 		fmt.Println(err)
 		return
 	}
