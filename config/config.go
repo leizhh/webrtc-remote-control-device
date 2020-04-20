@@ -20,4 +20,5 @@ var (
 	//DefaultVideoSrc = "autovideosrc ! video/x-raw, width=320, height=240 ! videoconvert ! queue"
 	DefaultSSHHost = "127.0.0.1"
 	DefaultSSHPort = 22
+	DefaultPassword = ""
 )

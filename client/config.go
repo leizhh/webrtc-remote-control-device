@@ -13,6 +13,7 @@ var Conf *Config
 type Config struct {
 	RTCConfig  webrtc.Configuration
 	DeviceId   string
+	Password   string
 	ServerAddr string
 	AudioSrc   string
 	VideoSrc   string
@@ -22,6 +23,7 @@ type Config struct {
 
 func InitConfig() error {
 	deviceId := flag.String("device-id", config.DefaultDeviceId, "set device id")
+	password := flag.String("password", config.DefaultPassword, "set password")
 	serverAddr := flag.String("server-addr", config.DefaultServerAddr, "set server address")
 	sshHost := flag.String("ssh-host", config.DefaultSSHHost, "set ssh host")
 	sshPort := flag.Int("ssh-port", config.DefaultSSHPort, "set ssh-port")
@@ -50,6 +52,7 @@ func InitConfig() error {
 		VideoSrc:   *videoSrc,
 		SSHHost:    *sshHost,
 		SSHPort:    *sshPort,
+		Password:   *password,
 	}
 
 	return nil

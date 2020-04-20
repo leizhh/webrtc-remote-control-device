@@ -63,6 +63,28 @@ func RTCReconnect(ws *websocket.Conn) {
 		}
 
 		if resp.Type == "offer" {
+			if Conf.Password != "" {
+				pwResp := &Session{}
+				pwResp.Type = "password"
+				pwResp.DeviceId = Conf.DeviceId
+				ws.WriteJSON(pwResp)
+				
+				var pwReq Session
+				ws.ReadJSON(&pwReq)
+				if pwReq.Type == "password" {
+					if pwReq.Data != Conf.Password {
+						pwResp := &Session{}
+						pwResp.Type = "error"
+						pwResp.Msg = "wrong password"
+						ws.WriteJSON(pwResp)
+						ws.Close()
+						return
+					}
+				} else {
+					ws.Close()
+					return
+				}
+			}
 			go startRTC(ws, resp.Data, stopRTC)
 		}
 
