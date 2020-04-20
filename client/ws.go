@@ -68,7 +68,7 @@ func RTCReconnect(ws *websocket.Conn) {
 				pwResp.Type = "password"
 				pwResp.DeviceId = Conf.DeviceId
 				ws.WriteJSON(pwResp)
-				
+
 				var pwReq Session
 				ws.ReadJSON(&pwReq)
 				if pwReq.Type == "password" {

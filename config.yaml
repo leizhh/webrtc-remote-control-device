@@ -1,0 +1,13 @@
+---
+ICEServers:
+- URLs: 'stun:118.89.111.54:3478'
+- URLs: 'turn:118.89.111.54:3478'
+  Username: 'leizhh'
+  Credential: 'leizhh'
+DeviceId: 'leizhh'
+Password: '111111'
+ServerAddr: '127.0.0.1'
+AudioSrc: 'audiotestsrc'
+VideoSrc: 'videotestsrc'
+SSHHost: '127.0.0.1'
+SSHPort: 22
