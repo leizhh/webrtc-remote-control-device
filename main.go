@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"time"
-	"webrtc-device/client"
+	"webrtc-remote-control-device/client"
 )
 
 func main() {

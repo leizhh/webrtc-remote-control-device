@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
-	gst "webrtc-device/lib/gstreamer-src"
-	"webrtc-device/lib/signal"
+	gst "webrtc-remote-control-device/lib/gstreamer-src"
+	"webrtc-remote-control-device/lib/signal"
 )
 
 func startRTC(ws *websocket.Conn, offer string, stopRTC chan string) {

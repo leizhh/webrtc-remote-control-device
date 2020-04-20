@@ -4,22 +4,21 @@
 <br>
 
 ## 使用说明
-### [server端](https://gitee.com/leizhh/webrtc-server)
-下载：
+### [server端](https://github.com/leizhh/webrtc-remote-control-server)
+### 下载：
 ```
-git clone https://gitee.com/leizhh/webrtc-server.git
-cd webrtc-server
+git clone https://github.com/leizhh/webrtc-remote-control-server.git
 ```
-运行：
+### 运行：
 ```
 go run main.go
 ```
 
-### [device端](https://gitee.com/leizhh/webrtc-device)
+### [device端](https://github.com/leizhh/webrtc-remote-control-device)
 ### 安装 GStreamer
 项目依赖gstreamer，安装方式：
 #### Debian/Ubuntu
-`sudo apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good`
+`sudo apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly`
 #### Windows MinGW64/MSYS2
 `pacman -S mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-libav mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad mingw-w64-x86_64-gst-plugins-ugly`
 #### macOS
@@ -27,18 +26,12 @@ go run main.go
 
 ### 下载：
 ```
-git clone https://gitee.com/leizhh/webrtc-device.git
-cd webrtc-device
+git clone https://github.com/leizhh/webrtc-remote-control-device.git
 ```
 
-配置deviceId：
+### 运行：
 ```
-vim config.go
-```
-
-运行：
-```
-go run *.go
+go run main.go -server-addr="$your_server_addr"
 ```
 
 ## 依赖

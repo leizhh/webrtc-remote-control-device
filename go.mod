@@ -1,4 +1,4 @@
-module webrtc-device
+module webrtc-remote-control-device
 
 go 1.13
 
